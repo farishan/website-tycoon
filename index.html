@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Website Tycoon</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        html {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+        }
+    </style>
+</head>
+
+<body>
+    <script>
+        /* inspired by https://jackprograms.itch.io/idle-website-tycoon */
+        const TITLE = 'Website Tycoon'
+
+        /* define ui root */
+        const ui = document.createElement('div')
+
+        const data = {
+            day: 0,
+            visitor: 0,
+            money: 0,
+            maxLoan: 100,
+            bankMoney: 100,
+            isFirstTimePlayed: false,
+            articleCount: 0,
+            actionPoint: 1,
+            maxActionPoint: 1,
+            serverLoad: 0
+        }
+    </script>
+    <script>
+        const gameLocation = {
+            /* path options: dashboard, main-menu, bank, mail/id */
+            path: '/',
+
+            assign: function (path) {
+                this.path = path
+                return this
+            },
+            is: function (path) {
+                return this.path === path
+            }
+        }
+    </script>
+    <script>
+        function changeScene(path) {
+            gameLocation.assign(path)
+            resetUI()
+            renderScene()
+        }
+
+        function generateDataUI() {
+            return `Day: ${data.day} | Action Point: ${data.actionPoint} | Money: ${data.money}`
+        }
+
+        function generateWebInfo() {
+            return `<p>
+                Server load: ${data.serverLoad}%
+                <br>Daily users: ${data.visitor}
+                <br>Articles: ${data.articleCount}
+            </p>`
+        }
+
+        function notifyPlayer(message) {
+            const notification = document.createElement('div')
+            notification.style.position = 'absolute'
+            notification.style.left = 0
+            notification.style.top = 0
+            notification.style.zIndex = 999
+            notification.style.background = 'yellow'
+            notification.innerHTML = message
+            ui.append(notification)
+
+            setTimeout(() => notification.remove(), 1500)
+        }
+
+        function generateScene(key, payload) {
+            let sceneUI = document.createElement('div');
+
+            if (key === 'main-menu') {
+                sceneUI.style.textAlign = 'center'
+
+                const title = document.createElement('h1')
+                title.innerHTML = TITLE
+                sceneUI.append(title)
+
+                const startButton = document.createElement('button')
+                startButton.onclick = () => payload.onStart()
+                startButton.innerText = 'Start Game'
+                sceneUI.appendChild(startButton)
+            }
+            else if (key === 'dashboard') {
+                const header = document.createElement('div')
+                header.style.borderBottom = '1px solid'
+                header.innerHTML = `${TITLE} | Dashboard | ${generateDataUI()}`
+                sceneUI.append(header)
+
+                const body = document.createElement('div')
+
+                if (data.isFirstTimePlayed) {
+                    body.append('welcome to your dashboard. first things first, let get some starter money.')
+                    const skipButton = document.createElement('button')
+                    skipButton.innerHTML = 'Skip'
+                    skipButton.onclick = () => {
+                        data.isFirstTimePlayed = false
+                        changeScene('dashboard')
+                    }
+                    body.append(skipButton)
+                } else {
+                    const serverLoad = document.createElement('div')
+                    serverLoad.innerHTML = generateWebInfo()
+                    body.append(serverLoad)
+
+                    const articleButton = document.createElement('button')
+                    articleButton.onclick = () => {
+                        if (data.actionPoint > 0) {
+                            data.articleCount++
+                            data.actionPoint--
+                            serverLoad.innerHTML = generateWebInfo()
+                            header.innerHTML = `${TITLE} | Dashboard | ${generateDataUI()}`
+                        }
+                    }
+                    articleButton.innerHTML = 'Add article (cost 1 Action Point)'
+                    body.append(articleButton)
+
+                    const bankButton = document.createElement('button')
+                    bankButton.onclick = () => changeScene('bank')
+                    bankButton.innerHTML = 'Go to Bank'
+                    body.append(bankButton)
+
+                    const inboxButton = document.createElement('button')
+                    inboxButton.onclick = () => changeScene('inbox')
+                    inboxButton.innerHTML = 'Check Email Inbox'
+                    body.append(inboxButton)
+
+                    const nextButton = document.createElement('button')
+                    nextButton.onclick = () => {
+                        data.day++
+                        data.visitor += Math.floor(Math.random() * 10) + 1
+                        data.serverLoad += Math.floor(Math.random() * 10) + 1
+                        data.actionPoint = data.maxActionPoint
+
+                        serverLoad.innerHTML = generateWebInfo()
+                        header.innerHTML = `${TITLE} | Dashboard | ${generateDataUI()}`
+                    }
+                    nextButton.innerHTML = 'Next Day'
+                    body.append(nextButton)
+                }
+
+                sceneUI.append(body)
+            }
+            else if (key === 'bank') {
+                const header = document.createElement('div')
+                header.style.borderBottom = '1px solid'
+                header.innerHTML = `${TITLE} | Bank | Money: $${data.money} | Bank Money: $${data.bankMoney}`
+                sceneUI.append(header)
+
+                const body = document.createElement('div')
+
+                const info = document.createElement('p')
+                info.innerHTML = `Welcome to the Bank. You can borrow $${data.maxLoan} with 1% interest.`
+                body.append(info)
+
+                const borrowInput = document.createElement('input')
+                borrowInput.onkeydown = e => {
+                    if (e.key === '+' || e.key === '-') {
+                        e.preventDefault()
+                        return
+                    }
+                }
+                borrowInput.type = 'number'
+                body.append(borrowInput)
+
+                const borrowButton = document.createElement('button')
+                borrowButton.innerHTML = 'Loan'
+                borrowButton.onclick = function () {
+                    if (!borrowInput.value || borrowInput.value === '') return
+                    const value = parseInt(borrowInput.value)
+                    if (isNaN(value)) return
+                    if (value > data.maxLoan || value > data.bankMoney) {
+                        notifyPlayer(`You can't borrow $${value}. The maximum loan is $${data.maxLoan} for now.`)
+                    } else {
+                        data.money += value
+                        data.bankMoney -= value
+                        header.innerHTML = `${TITLE} | Bank | Money: $${data.money} | Bank Money: $${data.bankMoney}`
+                    }
+                }
+                body.append(borrowButton)
+                sceneUI.append(body)
+
+                const footer = document.createElement('div')
+                const backButton = document.createElement('button')
+                backButton.onclick = () => changeScene('dashboard')
+                backButton.innerHTML = 'Back to Dashboard'
+                footer.append(backButton)
+                sceneUI.append(footer)
+            }
+            else if (key === 'inbox') {
+                const messageUI = document.createElement('p')
+                messageUI.innerHTML = 'Lorem ipsum dolro sit amet...'
+                messageUI.style.cursor = 'pointer'
+                messageUI.onmouseover = () => messageUI.style.textDecoration = 'underline'
+                messageUI.onmouseleave = () => messageUI.style.textDecoration = 'initial'
+                messageUI.onclick = () => changeScene('mail/id')
+                sceneUI.append(messageUI)
+
+                const footer = document.createElement('div')
+                const backButton = document.createElement('button')
+                backButton.onclick = () => changeScene('dashboard')
+                backButton.innerHTML = 'Back to Dashboard'
+                footer.append(backButton)
+                sceneUI.append(footer)
+            }
+            else if (key === 'mail/id') {
+                sceneUI.append('Lorem ipsumdolo sit amet.')
+                const footer = document.createElement('div')
+                const backButton = document.createElement('button')
+                backButton.onclick = () => changeScene('dashboard')
+                backButton.innerHTML = 'Back to Dashboard'
+                footer.append(backButton)
+                sceneUI.append(footer)
+            }
+
+            return sceneUI
+        }
+
+        function resetUI() {
+            ui.innerHTML = ''
+        }
+
+        function renderScene() {
+            if (gameLocation.is('main-menu')) {
+                ui.append(
+                    generateScene(
+                        gameLocation.path,
+                        {
+                            onStart: () => changeScene('dashboard')
+                        }
+                    )
+                )
+                return
+            }
+
+            ui.append(generateScene(gameLocation.path))
+        }
+    </script>
+    <script>
+        document.body.appendChild(ui)
+        changeScene('dashboard')
+    </script>
+</body>
+
+</html>
